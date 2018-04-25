@@ -38,9 +38,8 @@ class ComponentsContainer():
     def __init__(self, binary, low, verbosity=logging.DEBUG):
         self.l = logging.getLogger(self.__class__.__name__)
 
-
         self.verbosity = verbosity
-        
+
         self.height_margin = 0
         self.width_margin = 0
         self.displayed_sq = max(binary.shape)
@@ -67,9 +66,6 @@ class ComponentsContainer():
 
         self.add_edge_info_to_components()
 
-        self.markers_backup = np.copy(markers)
-        self.components_index_backup = copy.deepcopy(components_index)
-
     def log_event(self, msg):
         self.l.log(self.verbosity, msg)
 
@@ -90,8 +86,6 @@ class ComponentsContainer():
     @nb.jit()
     def merge_components_closer_than(self, centroid_t, contour_t):
         starttime = time.time()
-        self.reload()
-
         pairs_to_merge = []
         for first, second in itertools.combinations(self.components_index.keys(), 2):
             close_flag, points = self.components_index.get(first).is_close(self.components_index.get(second),
@@ -105,18 +99,8 @@ class ComponentsContainer():
             self._merge_two_components(*tm)
         self.log_event("merging took {:3} sec".format(time.time() - starttime))
 
-    def reload(self):
-        self.log_event("discarding previous components merge and axon-nucleus spliting")
-        self.markers = copy.deepcopy(self.markers_backup)
-        self.components_index = copy.deepcopy(self.components_index_backup)
-        self.nucleus_labs = list()
-        self.axon_labs = list()
-
     def split_nucl_axon(self, threshold):
         starttime = time.time()
-        self.nucleus_labs = list()
-        self.axon_labs = list()
-
         for lab in self.components_index.keys():
             if not self.components_index.get(lab).label == lab:
                 continue
@@ -127,11 +111,10 @@ class ComponentsContainer():
                 self.components_index[lab] = Axon.from_component(self.components_index[lab])
                 self.axon_labs.append(lab)
         self.log_event("splitting completted in {}, \naxons: {}, nucl: {}".format(time.time() - starttime,
-                                                                                       len(self.axon_labs),
-                                                                                       len(self.nucleus_labs)))
+                                                                                  len(self.axon_labs),
+                                                                                  len(self.nucleus_labs)))
 
     def group_axons_to_nucleus(self, centroid_t, contour_t):
-
         starttime = time.time()
         axons_with_nucl = 0
         for nucl_lab in self.nucleus_labs:
@@ -144,7 +127,7 @@ class ComponentsContainer():
                     axon.attached = True
                     axons_with_nucl += 1
         self.log_event("grouping ax to nucl took {:3} sec\n axons with nucleus: {}".format(time.time() - starttime,
-                                                                                            axons_with_nucl))
+                                                                                           axons_with_nucl))
 
     def _merge_two_components(self, survivor_label, disappearing_label, joint_points):
         disappearing_label = self.get_correct_label(disappearing_label)
@@ -194,6 +177,48 @@ class ComponentsContainer():
         plt.imshow(pic[self.height_margin:self.height_margin + self.displayed_sq,
                    self.width_margin:self.width_margin + self.displayed_sq],
                    cmap="jet")
+
+
+class ComponentsContainerWithHistory(ComponentsContainer):
+    def __init__(self, binary, low, verbosity=logging.DEBUG):
+        super(ComponentsContainerWithHistory, self).__init__(binary, low, verbosity)
+        self.markers_backup = np.copy(self.markers)
+        self.components_index_backup_before_first_merge = copy.deepcopy(self.components_index)
+        self.components_index_backup_before_splitting = {}
+        self.components_index_backup_before_grouping = {}
+
+    def merge_components_closer_than(self, centroid_t, contour_t):
+        self.reload_before_first_merge()
+        super(ComponentsContainerWithHistory, self).merge_components_closer_than(centroid_t, contour_t)
+        self.components_index_backup_before_splitting = copy.deepcopy(self.components_index)
+
+    def split_nucl_axon(self, threshold):
+        self.reload_before_splitting()
+        super(ComponentsContainerWithHistory, self).split_nucl_axon(threshold)
+        self.components_index_backup_before_grouping = copy.deepcopy(self.components_index)
+
+    def group_axons_to_nucleus(self, centroid_t, contour_t):
+        self.reload_before_grouping()
+        super(ComponentsContainerWithHistory, self).group_axons_to_nucleus(centroid_t, contour_t)
+
+    def reload_before_first_merge(self):
+        self.log_event("discarding previous components merge and axon-nucleus spliting")
+        self.markers = copy.deepcopy(self.markers_backup)
+        self.components_index = copy.deepcopy(self.components_index_backup_before_first_merge)
+        self.nucleus_labs = list()
+        self.axon_labs = list()
+
+    def reload_before_splitting(self):
+        self.log_event("discarding previous axon-nucleus spliting")
+        if self.components_index_backup_before_splitting:
+            self.components_index = copy.deepcopy(self.components_index_backup_before_splitting)
+        self.nucleus_labs = list()
+        self.axon_labs = list()
+
+    def reload_before_grouping(self):
+        self.log_event("discarding previous axon to nucleus grouping")
+        if self.components_index_backup_before_grouping:
+            self.components_index = copy.deepcopy(self.components_index_backup_before_grouping)
 
 
 class Component:
