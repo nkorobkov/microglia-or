@@ -33,8 +33,19 @@ def edges_close(edge1x, edge1y, edge2x, edge2y, thr):
                 return True, ((x1, y1), (x2, y2))
     return False, None
 
+def hull_area(hull):
+    y = hull[:,1]
+    x = hull[:,0]
+    return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
 
 class ComponentsContainer():
+    
+    DEFAULT_COLORS = {
+                'nucl' : [116, 188, 18],
+                'axon' : [165, 16, 100],
+                'hull' : [4, 23, 4]
+            }
+    
     def __init__(self, binary, low, verbosity=logging.DEBUG):
         self.l = logging.getLogger(self.__class__.__name__)
 
@@ -89,6 +100,13 @@ class ComponentsContainer():
         for c in self.components_index.values():
             c.edge = list()
             c.size = 0
+    
+    def add_hull_info_to_nucleus(self):
+        for nucl_lab in self.nucleus_labs:
+            nucl = self.components_index.get(nucl_lab)
+            hull = cv2.convexHull(np.array(nucl.edge))[:,0]
+            nucl.hull = hull
+            nucl.hull_size = hull_area(hull)
         
     @nb.jit()
     def merge_components_closer_than(self, centroid_t, contour_t):
@@ -133,9 +151,21 @@ class ComponentsContainer():
                     nucl.axons.append(axon)
                     axon.attached = True
                     axons_with_nucl += 1
+        self.discard_not_attached_axons()
         self.log_event("grouping ax to nucl took {:3} sec\n axons with nucleus: {}".format(time.time() - starttime,
                                                                                            axons_with_nucl))
-
+    def discard_not_attached_axons(self):
+        new_axon_labs = []
+        for ax_lab in self.axon_labs:
+            if self.components_index.get(ax_lab).attached:
+                new_axon_labs.append(ax_lab)
+            else:
+                del self.components_index[ax_lab]
+                self.markers[self.markers == ax_lab] = 0
+                
+        self.axon_labs = new_axon_labs
+                
+        
     def _merge_two_components(self, survivor_label, disappearing_label, joint_points):
         disappearing_label = self.get_correct_label(disappearing_label)
         survivor_label = self.get_correct_label(survivor_label)
@@ -158,31 +188,46 @@ class ComponentsContainer():
         else:
             return self.get_correct_label(self.components_index.get(label).label)
 
-    def draw_components(self):
-
+    def show_components(self):
         fig = plt.figure(figsize=(11, 11), dpi=80, facecolor='w', edgecolor='k')
         plt.imshow(self.markers[self.height_margin:self.height_margin + self.displayed_sq,
                    self.width_margin:self.width_margin + self.displayed_sq],
                    cmap="jet")
 
-    def get_nucl_and_axons_img(self):
-        pic = np.zeros((*self.markers.shape,3))
-        nucl_color = [210,40,73]
-        axon_color = [88,40,153]
-        n_edge_color = [108,200,38]
-        a_edge_color = [140,103,189]
+    def get_nucl_and_axons_img(self, colors = None, draw_axons=False):
+        if colors == None:
+            colors = self.DEFAULT_COLORS
 
-        for nucl_lab in self.nucleus_labs:
-            pic[self.markers == nucl_lab] = nucl_color
-            for ed in self.components_index.get(nucl_lab).edge:
-                pic[ed[0], ed[1]] = n_edge_color
-            for ax in self.components_index.get(nucl_lab).axons:
-                pic[self.markers == ax.label] = axon_color
-                for ed in ax.edge:
-                    pic[ed[0], ed[1]] = a_edge_color
-        return pic
+        pic = np.zeros((*self.markers.shape,3))
         
-    def draw_nucl_and_axons(self):
+        self.draw_hull(pic, self.rgb_to_bgr(colors['hull']))
+        self.draw_components(pic, self.nucleus_labs, self.rgb_to_bgr(colors['nucl']))
+            
+        if draw_axons:
+            self.draw_components(pic, self.axon_labs, self.rgb_to_bgr(colors['axon']))
+        return pic
+
+    def rgb_to_bgr(self, rgb):
+        return rgb[::-1]
+    
+    def draw_hull(self, pic, hull_color):
+        for nucl_lab in self.nucleus_labs:
+            
+            hull = np.array(self.components_index.get(nucl_lab).hull, np.int32)
+            hull.reshape((-1,1,2))
+            hull = hull[:,::-1]
+            cv2.fillConvexPoly(pic, hull, hull_color)
+            
+    def draw_components(self, pic,labs, color):
+        color = np.array(color)
+        edge_color = (color + (255 -color) * 0.8)
+
+        for lab in labs:                    
+            pic[self.markers == lab] = color
+            for ed in self.components_index.get(lab).edge:
+                pic[ed[0], ed[1]] = edge_color
+        
+    def show_nucl_and_axons(self):
         pic = self.get_nucl_and_axons_img()
         fig = plt.figure(figsize=(11, 11), dpi=80, facecolor='w', edgecolor='k')
         plt.imshow(pic[self.height_margin:self.height_margin + self.displayed_sq,
@@ -237,6 +282,8 @@ class Component:
         self.centroid = centroid
         self.label = label
         self.edge = list()
+        self.hull = list()
+        self.hull_size = 0
 
     @classmethod
     def from_component(cls, component):
