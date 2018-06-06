@@ -64,25 +64,32 @@ class ComponentsContainer():
         self.nucleus_labs = list()
         self.axon_labs = list()
 
-        self.add_edge_info_to_components()
+        self.recalc_edge_and_size_info()
 
     def log_event(self, msg):
         self.l.log(self.verbosity, msg)
 
-    def add_edge_info_to_components(self):
+    def recalc_edge_and_size_info(self):
         starttime = time.time()
+        self.drop_edge_and_size_info()        
         for i in range(1, self.markers.shape[0] - 1):
             for j in range(1, self.markers.shape[1] - 1):
                 cur_lab = self.markers[i, j]
-                if cur_lab in self.components_index.keys() and \
-                        not cur_lab == \
+                if cur_lab >0:
+                    self.components_index[cur_lab].size += 1
+                    if not cur_lab == \
                                 self.markers[i, j + 1] == \
                                 self.markers[i, j - 1] == \
                                 self.markers[i + 1, j] == \
                                 self.markers[i - 1, j]:
-                    self.components_index[cur_lab].add_edge(np.array([i, j]))
+                        self.components_index[cur_lab].add_edge(np.array([i, j]))
         self.log_event("adding edge info to components took {} sec".format(time.time() - starttime))
-
+        
+    def drop_edge_and_size_info(self):
+        for c in self.components_index.values():
+            c.edge = list()
+            c.size = 0
+        
     @nb.jit()
     def merge_components_closer_than(self, centroid_t, contour_t):
         starttime = time.time()
@@ -158,25 +165,28 @@ class ComponentsContainer():
                    self.width_margin:self.width_margin + self.displayed_sq],
                    cmap="jet")
 
-    def draw_nucl_and_axons(self):
-        pic = np.zeros(self.markers.shape)
-        nucl_color = 400
-        axon_color = 455
-        color_switch = 1
-        switch_val = 100
+    def get_nucl_and_axons_img(self):
+        pic = np.zeros((*self.markers.shape,3))
+        nucl_color = [210,40,73]
+        axon_color = [88,40,153]
+        n_edge_color = [108,200,38]
+        a_edge_color = [140,103,189]
+
         for nucl_lab in self.nucleus_labs:
             pic[self.markers == nucl_lab] = nucl_color
+            for ed in self.components_index.get(nucl_lab).edge:
+                pic[ed[0], ed[1]] = n_edge_color
             for ax in self.components_index.get(nucl_lab).axons:
                 pic[self.markers == ax.label] = axon_color
-
-            nucl_color += color_switch * switch_val
-            axon_color += color_switch * switch_val
-            color_switch *= 1
-
+                for ed in ax.edge:
+                    pic[ed[0], ed[1]] = a_edge_color
+        return pic
+        
+    def draw_nucl_and_axons(self):
+        pic = self.get_nucl_and_axons_img()
         fig = plt.figure(figsize=(11, 11), dpi=80, facecolor='w', edgecolor='k')
         plt.imshow(pic[self.height_margin:self.height_margin + self.displayed_sq,
-                   self.width_margin:self.width_margin + self.displayed_sq],
-                   cmap="jet")
+                   self.width_margin:self.width_margin + self.displayed_sq])
 
 
 class ComponentsContainerWithHistory(ComponentsContainer):
@@ -226,7 +236,7 @@ class Component:
         self.size = size
         self.centroid = centroid
         self.label = label
-        self.edge = []
+        self.edge = list()
 
     @classmethod
     def from_component(cls, component):
