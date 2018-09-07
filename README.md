@@ -1,6 +1,7 @@
 # microglia segmentation
 
-Set of algorithms to segment microglia cells from mouse brain fixed in thin paraffin slises shots. 
+Set of algorithms to segment microglia cells from mouse brain shots. 
+(There is a ton of science behind how those pictures are taken. This repo has nothing to do with that.) 
 
 Algorithm receives raw images as input and finds microglias borders and hull convex for each cell. 
 
