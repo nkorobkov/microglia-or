@@ -31,7 +31,7 @@ def edges_close(edge1x, edge1y, edge2x, edge2y, thr):
 
             if (delta1 ** 2 + delta2 ** 2) < thrs:
                 return True, ((x1, y1), (x2, y2))
-    return False, None
+    return False, ((0,0),(0,0))
 
 def hull_area(hull):
     y = hull[:,1]
@@ -194,13 +194,14 @@ class ComponentsContainer():
                    self.width_margin:self.width_margin + self.displayed_sq],
                    cmap="jet")
 
-    def get_nucl_and_axons_img(self, colors = None, draw_axons=False):
+    def get_nucl_and_axons_img(self, colors = None, draw_axons=False, with_hull = False):
         if colors == None:
             colors = self.DEFAULT_COLORS
 
         pic = np.zeros((*self.markers.shape,3))
         
-        self.draw_hull(pic, self.rgb_to_bgr(colors['hull']))
+        if with_hull: 
+            self.draw_hull(pic, self.rgb_to_bgr(colors['hull']))
         self.draw_components(pic, self.nucleus_labs, self.rgb_to_bgr(colors['nucl']))
             
         if draw_axons:
