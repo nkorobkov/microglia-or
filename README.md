@@ -44,6 +44,6 @@ Application of laser scanning confocal fluorescent microscopy for visualization 
 2018 September 9-14: B-P-2.
   
 Glyavina M.M., Loginov P.A., Dudenkova V.V., Shirokova O.M., Reunov D.G., Karpova A.O., Prodanets N.N., Korobkov N.A., Zhuchenko M.A., Mukhina I.V.  
-Morphological analysis of microglia in early postischemic period in the mouse local cerebral ischemia.  
+[Morphological analysis of microglia in early postischemic period in the mouse local cerebral ischemia.](https://www.epj-conferences.org/articles/epjconf/pdf/2018/30/epjconf_tera2018_10004.pdf)  
 *"TERA — 2018, 3rd International Conference Terahertz and Microwave Radiation: Generation, Detection and Applications"*  
 2018 October 22—25: S10, P.10.9
