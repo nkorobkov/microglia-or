@@ -306,7 +306,10 @@ class Component:
 
         e1 = np.array(self.edge)
         e2 = np.array(second_comp.edge)
-        return edges_close(e1[:, 0], e1[:, 1], e2[:, 0], e2[:, 1], thr)
+        if len(e1)>0 and len(e2)>0:
+            return edges_close(e1[:, 0], e1[:, 1], e2[:, 0], e2[:, 1], thr)
+        else:
+            return False, ((0,0),(0,0))
 
     def is_nucleus(self):
         return False
